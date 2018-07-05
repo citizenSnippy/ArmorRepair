@@ -535,6 +535,7 @@ namespace ArmorRepair
         }
     }
 
+    /* ARMOR RESET PROBLEM DEBUGGING 
     [HarmonyPatch(typeof(SimGameState), "RestoreArmorIfUndamaged")]
     public static class SimGameState_RestoreArmorIfUndamaged_Patch
     {
@@ -554,7 +555,7 @@ namespace ArmorRepair
             return false;
         }
     }
-
+    */
 
 
 }

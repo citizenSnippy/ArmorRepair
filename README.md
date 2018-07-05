@@ -5,6 +5,10 @@ ArmorRepair does this by automatically generating Mech Bay work orders to replac
 
 The mod also uses the same system to create automatic structural repair orders after battles (you can disable this in the mod.json settings).
 
+The intent of this mod is to provide a "Mech Fatigue" style mechanic, where mechs taking hits in battle actually costs your merc company some time and cbills to sort out. This ultimately should slow the pace
+of snowballing in a campaign, and with the repairs scaled by tonnage it will also help other mods in creating a more meaingful decision over which mechs to take, and to risk, on different missions.
+
+
 ## Requirements
 * install [BattleTechModLoader](https://github.com/Mpstark/BattleTechModLoader/releases) using the [instructions here](https://github.com/Mpstark/BattleTechModLoader)
 * install [ModTek](https://github.com/Mpstark/ModTek/releases) using the [instructions here](https://github.com/Mpstark/ModTek)
@@ -19,10 +23,15 @@ The mod also uses the same system to create automatic structural repair orders a
 - Scales both structure and armor costs with the mech tonnage, making Light mechs more cost effective on milk runs, and Heavy/Assault mechs more of a consideration than a go-to.
 
 ## IMPORTANT NOTES
-* The vanilla SimGameConstants setting "ArmorInstallTechPoints" had to be increased in this mod by a factor of 100 to make armor repairs work correctly. 
-	* This is because HBS set it as an integer (a whole number). By default, even setting it to its lowest usable integer value (1) resulted in massive armor modification / repair times, and we needed much more flexibility than that overall.
-	* When tweaking this setting in SimGameConstants while using this mod, bear in mind it needs to be much higher than it would be in vanilla. For example, an ArmorTechCost setting of 100 with this mod would be equal to 1 in vanilla.
-* If you disable the scaleStructureCostByTonnage and/or scaleArmorCostByTonnage functionality, remember to lower the relevant costs in the mnod's SimGameConstants.json accordingly.
+* Armor Tech Costs:
+	* The vanilla SimGameConstants setting "ArmorInstallTechPoints" had to be increased in this mod by a factor of 100 to make armor repairs work correctly. 
+	* This is because Harebrained Schemes set it up as an integer (a whole number). By default, even setting it to its lowest usable integer value (1) resulted in massive armor modification / repair times, and we needed much more flexibility than that overall.
+	* When tweaking this setting in SimGameConstants while using this mod, bear in mind it needs to be much higher than it would be in vanilla. For example, an ArmorInstallTechCost setting of 100 with this mod would be equal to 1 in vanilla.
+* Disabling Mech Tonnage Cost Scaling:
+	* If you disable the scaleStructureCostByTonnage and/or scaleArmorCostByTonnage functionality, remember to lower the relevant costs in the mnod's SimGameConstants.json accordingly.
+* Unused Tonnage warnings in Mech Bay:
+	* We have had to use the Unused Tonnage warning symbol in the mech bay to flag up when a mech's repair work orders have been completed, but the mech has damaged components on it (e.g. a destroyed heatsink)
+	* This is just because it was easily available, and HBS don't specifically have a warning flag or check for destroyed components, and otherwise it wasn't obvious to the player something was wrong with the mech.
 
 ## Download
 Downloads can be found on [github](https://github.com/citizenSnippy/ArmorRepair/releases).

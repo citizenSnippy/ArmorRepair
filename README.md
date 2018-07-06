@@ -18,15 +18,15 @@ of snowballing in a campaign, and with the repairs scaled by tonnage it will als
 
 ## Features
 - Armor loss now matters
-- No more busywork with repairs. Let Yang take care of it!
+- No more busywork with basic repairs... Let Yang take care of it!
 - Automated repair work orders can be cancelled safely, and will refund any sub items not paid for.
-- Scales both structure and armor costs with the mech tonnage, making Light mechs more cost effective on milk runs, and Heavy/Assault mechs more of a consideration than a go-to.
+- Scales both structure and armor costs with the mech tonnage, making Light mechs more cost effective on milk runs, and taking Heavy/Assault mechs more of a consideration than the only choice.
 
 ## IMPORTANT NOTES
 * Armor Tech Costs:
 	* The vanilla SimGameConstants setting `ArmorInstallTechPoints` had to be increased in this mod by a factor of 100 to make armor repairs work correctly. 
 	* This is because Harebrained Schemes set it up as an integer (a whole number). By default, even setting it to its lowest usable integer value (1) resulted in massive armor modification / repair times, and we needed much more flexibility than that overall.
-	* When tweaking this setting in SimGameConstants while using this mod, bear in mind it needs to be much higher than it would be in vanilla. For example, an `ArmorInstallTechCost` setting of 100 with this mod would be equal to 1 in vanilla.
+	* When tweaking this setting in SimGameConstants while using this mod, bear in mind it needs to be much higher than it would be in vanilla. For example, an `ArmorInstallTechPoints` setting of 100 with this mod would be equal to 1 in vanilla.
 * Disabling Mech Tonnage Cost Scaling:
 	* If you disable the `scaleStructureCostByTonnage` or `scaleArmorCostByTonnage` functionality, remember to lower the relevant costs in the mod's SimGameConstants.json accordingly.
 * Unused Tonnage warnings in Mech Bay:

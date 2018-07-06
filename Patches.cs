@@ -191,8 +191,8 @@ namespace ArmorRepair
 
                         Logger.LogDebug("Adding base MechLab WO to queue.");
 
-                        // Now that all WO subentries are added, add the base MechLab work order to the game's Mech Lab Work Order Queue
-                        __instance.MechLabQueue.Add(newMechLabWorkOrder);
+                        // Now that all WO subentries are added, insert the base MechLab work order to the game's Mech Lab Work Order Queue as the highest priority (index 0)
+                        __instance.MechLabQueue.Insert(0, newMechLabWorkOrder);
                         // Call this to properly Initialize the base Mech Lab WO and make it visible in the Mech Lab queue UI / timeline etc.
                         __instance.InitializeMechLabEntry(newMechLabWorkOrder, newMechLabWorkOrder.GetCBillCost());
                         // This call below is also required to push it to the queue, but is now included in the above InitializeMechLabEntry method

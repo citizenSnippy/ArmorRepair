@@ -1,12 +1,243 @@
 ﻿using System;
 using System.Collections.Generic;
-using BattleTech;
 using Harmony;
+using BattleTech;
+using BattleTech.UI;
 using UnityEngine;
 using System.Linq;
 
 namespace ArmorRepair
 {
+
+    // Ask the user if they want automated armor / structure repairs
+    [HarmonyPatch(typeof(SimGameState), "ResolveCompleteContract")]
+    public static class SimGameState_ResolveCompleteContract_Patch
+    {
+        public static void Postfix(SimGameState __instance)
+        {
+            try
+            {
+                // If there are any work orders in the temporary queue, prompt the player
+                if(Globals.tempMechLabQueue.Count > 0)
+                {
+                    Logger.LogDebug("Processing temp Mech Lab queue orders.");     
+                    
+                    int cbills = 0;
+                    int techCost = 0;
+                    int mechRepairCount = 0;
+                    int skipMechCount = 0;
+                    string mechRepairCountDisplayed = String.Empty;
+                    string skipMechCountDisplayed = String.Empty;
+                    string skipMechMessage = String.Empty;
+                    string finalMessage = String.Empty;
+
+                    Logger.LogDebug("Temp Queuue has " + Globals.tempMechLabQueue.Count + " entries.");
+
+                    // If player has disabled auto repairing mechs with damaged components, check for them and remove them from the temp queue before continuing
+                    if (!ArmorRepair.ModSettings.AutoRepairMechsWithDamagedComponents)
+                    {
+                        for (int index = 0; index < Globals.tempMechLabQueue.Count; index++)
+                        {
+                            WorkOrderEntry_MechLab order = Globals.tempMechLabQueue[index];
+                            bool removeOrder = false;
+
+                            Logger.LogDebug("Checking for destroyed components due to autoRepairMechsWithDamagedComponents=true setting...");
+                            // Check for damaged mechs with destroyed components
+                            MechDef mech = __instance.GetMechByID(order.MechID);
+
+                            foreach (MechComponentRef mechComponentRef in mech.Inventory)
+                            {
+                                Logger.LogDebug("ComponentDefId: " + mechComponentRef.ComponentDefID);
+                                Logger.LogDebug("ComponentDefType: " + mechComponentRef.ComponentDefType);
+                                Logger.LogDebug("DamageLevel: " + mechComponentRef.DamageLevel);
+
+                                if (!removeOrder && mechComponentRef.DamageLevel == ComponentDamageLevel.Destroyed)
+                                {
+                                    Logger.LogDebug(mech.Name + " has destroyed components: " + mechComponentRef.ToString() + " and will be removed from the queue.");
+                                    removeOrder = true;
+                                }
+                            }
+
+                            if (removeOrder)
+                            {
+                                // Remove this work order from the temp mech lab queue if the mech has damaged components and move to next iteration
+                                Logger.LogDebug("Removing " + mech.Name + " order from temp queue.");
+                                Globals.tempMechLabQueue.Remove(order);
+                                removeOrder = false;
+                                skipMechCount++;
+                                index++;
+                            }         
+                        }
+                    }
+
+                    Logger.LogDebug("Temp Queue has " + Globals.tempMechLabQueue.Count + " entries.");
+
+                    // Calculate repair costs from the temp work order queue
+                    for (int index = 0; index < Globals.tempMechLabQueue.Count; index++)
+                    {
+                        WorkOrderEntry_MechLab order = Globals.tempMechLabQueue[index];
+                        MechDef mech = __instance.GetMechByID(order.MechID);
+                        Logger.LogDebug("Adding " + mech.Name + " to RepairCount.");
+                        cbills += order.GetCBillCost();
+                        techCost += order.GetCost();
+                        mechRepairCount++;
+                    }
+
+                    mechRepairCount = Mathf.Clamp(mechRepairCount, 0, 4);
+                    Logger.LogDebug("Temp Queue has " + Globals.tempMechLabQueue.Count + " work order entries.");
+
+                    // If Yang's Auto Repair prompt is enabled, build a message prompt dialog for the player
+                    if (ArmorRepair.ModSettings.EnableAutoRepairPrompt)
+                    {
+
+                        // Calculate a friendly techCost of the work order in days, based on number of current mechtechs in the player's game.
+                        if (techCost != 0 && __instance.MechTechSkill != 0)
+                        {                
+                            techCost = Mathf.CeilToInt((float)techCost / (float)__instance.MechTechSkill);
+                        }
+                        else
+                        {
+                            techCost = 1; // Safety in case of weird div/0
+                        }
+
+                        // Generate a quick friendly description of how many mechs were damaged in battle
+                        switch (mechRepairCount)
+                        {
+                            case 0:
+                                {
+                                    Logger.LogDebug("mechRepairCount was 0."); break;
+                                }
+                            case 1: { mechRepairCountDisplayed = "one of our 'Mechs was"; break; }
+                            case 2: { mechRepairCountDisplayed = "a couple of the 'Mechs were"; break; }
+                            case 3: { mechRepairCountDisplayed = "three of our 'Mechs were"; break; }
+                            case 4: { mechRepairCountDisplayed = "our whole lance was"; break; }
+                        }
+                        // Generate a friendly description of how many mechs were damaged but had components destroyed
+                        switch (skipMechCount)
+                        {
+                            case 0:
+                                {
+                                    Logger.LogDebug("skipMechCount was 0."); break;
+                                }
+                            case 1: { skipMechCountDisplayed = "one of the 'Mechs is damaged but has"; break; }
+                            case 2: { skipMechCountDisplayed = "two of the 'Mechs are damaged but have"; break; }
+                            case 3: { skipMechCountDisplayed = "three of the 'Mechs are damaged but have "; break; }
+                            case 4: { skipMechCountDisplayed = "the whole lance is damaged but has"; break; }
+                        }
+
+                        if (mechRepairCount > 0 || skipMechCount > 0)
+                        {
+
+                            Logger.LogDebug("mechRepairCount is " + mechRepairCount + " skipMechCount is " + skipMechCount);
+
+                            // Setup the notification for mechs with damaged components that we might want to skip
+                            if (skipMechCount > 0 && mechRepairCount == 0)
+                            {
+                                skipMechMessage = String.Format("{0} destroyed components. I'll leave the repairs for you to review.", skipMechCountDisplayed);
+                            }
+                            else 
+                            {
+                                skipMechMessage = String.Format("{0} destroyed components, so I'll leave those repairs to you.", skipMechCountDisplayed);
+                            }
+                            
+                            Logger.LogDebug("Firing Yang's UI notification.");
+                            SimGameInterruptManager notificationQueue = __instance.GetInterruptQueue();
+
+                            // If all of the mechs needing repairs have damaged components and should be skipped from auto-repair, change the message notification structure to make more sense (e.g. just have an OK button)
+                            if(skipMechCount > 0 && mechRepairCount == 0)
+                            {
+                                finalMessage = String.Format(
+                                    "Boss, {0} \n\n", 
+                                    skipMechMessage
+                                );
+
+                                // Queue Notification
+                                notificationQueue.QueuePauseNotification(
+                                    "'Mech Repairs Needed",
+                                    finalMessage,
+                                    __instance.GetCrewPortrait(SimGameCrew.Crew_Yang),
+                                    string.Empty,
+                                    delegate
+                                    {
+                                        Logger.LogDebug("[PROMPT] All damaged mechs had destroyed components and won't be queued for repair.");
+                                    },
+                                    "OK"
+                                );
+                            }
+                            else
+                            {
+                                if(skipMechCount > 0)
+                                {
+                                    finalMessage = String.Format(
+                                        "Boss, {0} damaged. It'll cost <color=#DE6729>{1}{2:n0}</color> and {3} days for these repairs. Want my crew to get started?\n\nAlso, {4}\n\n",
+                                        mechRepairCountDisplayed,
+                                        '¢', cbills.ToString(),
+                                        techCost.ToString(),
+                                        skipMechMessage
+                                    );
+                                }
+                                else
+                                {
+                                    finalMessage = String.Format(
+                                        "Boss, {0} damaged on the last engagement. It'll cost <color=#DE6729>{1}{2:n0}</color> and {3} days for the repairs.\n\nWant my crew to get started?",
+                                        mechRepairCountDisplayed,
+                                        '¢', cbills.ToString(),
+                                        techCost.ToString()
+                                    );
+                                }
+                                
+
+                                // Queue Notification
+                                notificationQueue.QueuePauseNotification(
+                                    "'Mech Repairs Needed",
+                                    finalMessage,
+                                    __instance.GetCrewPortrait(SimGameCrew.Crew_Yang),
+                                    string.Empty,
+                                    delegate
+                                    {
+                                        Logger.LogDebug("[PROMPT] Moving work orders from temp queue to Mech Lab queue: " + Globals.tempMechLabQueue.Count + " work orders");
+                                        foreach (WorkOrderEntry_MechLab workOrder in Globals.tempMechLabQueue.ToList())
+                                        {
+                                            Logger.LogInfo("[PROMPT] Moving work order from temp queue to Mech Lab queue: " + workOrder.Description + " - " + workOrder.GetCBillCost());
+                                            Helpers.SubmitWorkOrder(__instance, workOrder);
+                                            Globals.tempMechLabQueue.Remove(workOrder);
+                                        }
+                                    },
+                                    "Yes",
+                                    delegate
+                                    {
+                                        Logger.LogInfo("[PROMPT] Discarding work orders from temp queue: " + Globals.tempMechLabQueue.Count + " work orders");
+                                        foreach (WorkOrderEntry_MechLab workOrder in Globals.tempMechLabQueue.ToList())
+                                        {
+                                            Logger.LogInfo("[PROMPT] Discarding work order from temp queue: " + workOrder.Description + " - " + workOrder.GetCBillCost());
+                                            Globals.tempMechLabQueue.Remove(workOrder);
+                                        }
+                                    },
+                                    "No"
+                                );
+                            }
+                        }
+                    }
+                    else // If Auto Repair prompt is not enabled, just proceed with queuing the remaining temp queue work orders and don't notify the player
+                    {
+                        foreach (WorkOrderEntry_MechLab workOrder in Globals.tempMechLabQueue.ToList())
+                        {
+                            Logger.LogInfo("[AUTO] Moving work order from temp queue to Mech Lab queue: " + workOrder.Description + " - " + workOrder.GetCBillCost());
+                            Helpers.SubmitWorkOrder(__instance, workOrder);
+                            Globals.tempMechLabQueue.Remove(workOrder);
+                        }          
+                    }
+                }    
+            }
+            catch (Exception ex)
+            {
+                Globals.tempMechLabQueue.Clear();
+                Logger.LogError(ex);
+            }
+        }
+    }
+
+
     // Prefix on RestoreMechPostCombat to create a new modify armor work order from the armor loss difference of each mech at the end of combat
     [HarmonyPatch(typeof(SimGameState), "RestoreMechPostCombat")]
     public static class SimGameState_RestoreMechPostCombat_Patch
@@ -188,29 +419,12 @@ namespace ArmorRepair
                 {
                     if (newMechLabWorkOrder.SubEntryCount > 0)
                     {
-
-                        Logger.LogDebug("Adding base MechLab WO to queue.");
-
-                        // Now that all WO subentries are added, insert the base MechLab work order to the game's Mech Lab Work Order Queue as the highest priority (index 0)
-                        __instance.MechLabQueue.Insert(0, newMechLabWorkOrder);
-                        // Call this to properly Initialize the base Mech Lab WO and make it visible in the Mech Lab queue UI / timeline etc.
-                        __instance.InitializeMechLabEntry(newMechLabWorkOrder, newMechLabWorkOrder.GetCBillCost());
-                        // This call below is also required to push it to the queue, but is now included in the above InitializeMechLabEntry method
-                        //      _instance.RoomManager.AddWorkQueueEntry(newMechLabWorkOrder);
-
-                        // Force an update of the Mech Lab queue, false is to tell it a day isn't passing.
-                        __instance.UpdateMechLabWorkQueue(false);
-
-                        // Simple cost debugging for the log
-                        foreach (WorkOrderEntry subEntries in newMechLabWorkOrder.SubEntries)
-                        {
-                            Logger.LogDebug(subEntries.Description + " Repair Tech Costs: " + subEntries.GetCost());
-                        }
-                        Logger.LogInfo(mech.Name + " Repair Costs are - techCost: " + newMechLabWorkOrder.GetCost() + " | CBill Cost: " + newMechLabWorkOrder.GetCBillCost());
-                        Logger.LogInfo("=====================================================================");
-
-                        // Deduct the total CBill costs of the WO from player inventory. For some reason this isn't done automatically via the HBS WO system.
-                        __instance.AddFunds(-newMechLabWorkOrder.GetCBillCost(), "ArmorRepair", true);
+                        // Submit work order to our temporary queue for internal processing
+                        Helpers.SubmitTempWorkOrder(
+                            __instance, 
+                            newMechLabWorkOrder,
+                            mech
+                        );
                     }
                     else
                     {
@@ -442,7 +656,7 @@ namespace ArmorRepair
         }
     }
 
-    /* UI WARNING ON DAMAGED COMPONENTS
+    /* [FIX] UI WARNING ON DAMAGED COMPONENTS
      * Attempting to flag up warning in Mech Bay / Mech Lab when a mech has destroyed components.
      * 
      * This isn't a problem in vanilla, but now we are auto repairing armour and structure and can't auto repair components (e.g. they might not be in stock)
@@ -462,6 +676,7 @@ namespace ArmorRepair
                     MechComponentRef mechComponentRef = mechDef.Inventory[i];
                     if (mechComponentRef.DamageLevel == ComponentDamageLevel.Destroyed)
                     {
+                        
                         Logger.LogDebug("Flagging damaged component warning: " + mechDef.Name);
                         errorMessages[MechValidationType.Underweight].Add(string.Format("DAMAGED COMPONENT: 'Mech has damaged components", new object[0]));
                         break;
@@ -475,6 +690,27 @@ namespace ArmorRepair
         }
     }
 
+
+    /* [FIX] SUPPRESS YANG REPAIRS WARNING
+     * If the player has enabled Yang's notification about mech repairs in this mod, suppress the default in-game warning from spamming the player about repairs twice
+     */ 
+    [HarmonyPatch(typeof(SimGameState), "ShowMechRepairsNeededNotif")]
+    public static class SimGameState_ShowMechRepairsNeededNotif_Patch
+    {
+        public static bool Prefx(SimGameState __instance)
+        {
+            if(ArmorRepair.ModSettings.enableAutoRepairPrompt)
+            {
+                __instance.CompanyStats.Set<int>("COMPANY_NotificationViewed_BattleMechRepairsNeeded", __instance.DaysPassed);
+                return false; // Suppress original method
+            }
+            else
+            {
+                return true; // Do nothing if the player isn't using our Yang prompt functionality.
+            }
+            
+        }
+    }
 
 
     /* TESTING / DEBUGGING
@@ -534,28 +770,4 @@ namespace ArmorRepair
             }
         }
     }
-
-    /* ARMOR RESET PROBLEM DEBUGGING 
-    [HarmonyPatch(typeof(SimGameState), "RestoreArmorIfUndamaged")]
-    public static class SimGameState_RestoreArmorIfUndamaged_Patch
-    {
-        public static bool Prefix(LocationLoadoutDef loadoutDef, LocationDef chassisLocationDef)
-        {
-            Logger.LogDebug("ALERT: The game is still calling SimGameState.RestoreArmorIfUndamaged from somewhere!");
-            return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(MechDef), "ResetArmorToAssigned")]
-    public static class MechDef_ResetArmorToAssigned_Patch
-    {
-        public static bool ResetArmorToAssigned()
-        {
-            Logger.LogDebug("ALERT: The game is still calling MechDef.ResetArmorToDefined from somewhere!");
-            return false;
-        }
-    }
-    */
-
-
 }

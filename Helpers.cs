@@ -2,11 +2,55 @@
 using System.Linq;
 using UnityEngine;
 using BattleTech;
+using System;
 
 namespace ArmorRepair
 {
     class Helpers
     {
+        /* Submits a Mech Lab Work Order to our temporary queue, it will be held there until the player decides whether to let Yang run the repairs or not.*/
+        public static void SubmitTempWorkOrder(SimGameState simGame, WorkOrderEntry_MechLab newMechLabWorkOrder, MechDef mech)
+        {
+            try
+            {
+                Logger.LogDebug("Adding base MechLab WO to temporary queue.");
+                Globals.tempMechLabQueue.Add(newMechLabWorkOrder);
+                Logger.LogDebug("Number of work orders in temp queue: " + Globals.tempMechLabQueue.Count.ToString());
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+            }
+        }
+
+        /* Submits a Mech Lab Work Order to the game's Mech Lab queue to actually be processed */
+        public static void SubmitWorkOrder(SimGameState simGame, WorkOrderEntry_MechLab newMechLabWorkOrder)
+        {
+            Logger.LogDebug("Begin SubmitWorkOrder(): ");
+            // Now that all WO subentries are added, insert the base MechLab work order to the game's Mech Lab Work Order Queue as the highest priority (index 0)
+            simGame.MechLabQueue.Insert(0, newMechLabWorkOrder);
+            // Call this to properly Initialize the base Mech Lab WO and make it visible in the Mech Lab queue UI / timeline etc.
+            simGame.InitializeMechLabEntry(newMechLabWorkOrder, newMechLabWorkOrder.GetCBillCost());
+            // This call below is also required to push it to the queue, but is now included in the above InitializeMechLabEntry method
+            //      _instance.RoomManager.AddWorkQueueEntry(newMechLabWorkOrder);
+
+            // Force an update of the Mech Lab queue, false is to tell it a day isn't passing.
+            simGame.UpdateMechLabWorkQueue(false);
+
+            // Simple cost debugging for the log
+            foreach (WorkOrderEntry subEntries in newMechLabWorkOrder.SubEntries)
+            {
+                Logger.LogDebug(subEntries.Description + " Repair Tech Costs: " + subEntries.GetCost());
+            }
+
+            Logger.LogInfo(simGame.GetMechByID(newMechLabWorkOrder.MechID) + " Repair Costs are - techCost: " + newMechLabWorkOrder.GetCost() + " | CBill Cost: " + newMechLabWorkOrder.GetCBillCost());
+            Logger.LogInfo("=====================================================================");
+
+            // Deduct the total CBill costs of the WO from player inventory. For some reason this isn't done automatically via the HBS WO system.
+            simGame.AddFunds(-newMechLabWorkOrder.GetCBillCost(), "ArmorRepair", true);
+        }
+
+
 
         /* REPAIR PRIORITIES
          * Set priority order of chassis locations for repairs (key 0 = highest priority)
@@ -132,9 +176,7 @@ namespace ArmorRepair
             }
 
             return mechNeedsRepair;
-
-        }
-
+        }        
 
     }
 }

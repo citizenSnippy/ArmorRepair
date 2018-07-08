@@ -11,7 +11,7 @@ namespace ArmorRepair
         // Mod Settings
         public static Settings ModSettings;
         public static string ModDirectory;
-        
+
         public static void Init(string modDirectory, string settingsJSON)
         {
 
@@ -39,6 +39,8 @@ namespace ArmorRepair
             Logger.LogDebug("Mod Settings StructureRepair: " + ModSettings.EnableStructureRepair);
             Logger.LogDebug("Mod Settings StructureScaling: " + ModSettings.ScaleStructureCostByTonnage);
             Logger.LogDebug("Mod Settings ArmorScaling: " + ModSettings.ScaleArmorCostByTonnage);
+            Logger.LogDebug("Mod Settings EnableAutoRepairPrompt: " + ModSettings.EnableAutoRepairPrompt);
+            Logger.LogDebug("Mod Settings AutoRepairMechsWithDamagedComponents: " + ModSettings.AutoRepairMechsWithDamagedComponents);
             Logger.LogInfo("Mod Initialised.");
 
         }

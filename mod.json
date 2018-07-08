@@ -11,7 +11,9 @@
 		"debug" : true,
 		"enableStructureRepair" : true,
 		"scaleStructureCostByTonnage" : true,
-		"scaleArmorCostByTonnage" : true
+		"scaleArmorCostByTonnage" : true,
+		"enableAutoRepairPrompt" : true,
+		"repairMechsWithDamagedComponents" : true
 	},
 	
 	"DLL": "ArmorRepair.dll"

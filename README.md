@@ -56,10 +56,10 @@ debug | bool | default true | Set this to false to turn off debug logging (See A
 ## SimGameConstants.json Settings
 Setting | Type | Default | Description
 --- | --- | --- | ---
-StructureRepairTechPoints | float | default 0.9 | Number of tech points to repair structure. With mech tonnage scaling enabled, this is a maximum - you will typically only pay 30-50% of this early game.
+StructureRepairTechPoints | float | default 0.7 | Number of tech points to repair structure. With mech tonnage scaling enabled, this is a maximum - you will typically only pay 30-50% of this early game.
 StructureRepairCost | float | default 600 | Number of cbills to repair structure. With mech tonnage scaling enabled, this is a maximum - you will typically only pay 30-50% of this early game.
-ArmorInstallTechPoints | float | default 35 | Number of tech points to repair armor (remember this is divided by 100 so this is equivalent 0.35 of StructureRepairTechPoints. With mech tonnage scaling enabled, this is a maximum - you will typically only pay 30-50% of this early game. 
-ArmorInstallCost | float | default 200 | Number of cbills to repair armor. With mech tonnage scaling enabled, this is a maximum - you will typically only pay 30-50% of this early game.
+ArmorInstallTechPoints | float | default 25 | Number of tech points to repair armor (remember this is divided by 100 so this is equivalent 0.35 of StructureRepairTechPoints. With mech tonnage scaling enabled, this is a maximum - you will typically only pay 30-50% of this early game. 
+ArmorInstallCost | float | default 150 | Number of cbills to repair armor. With mech tonnage scaling enabled, this is a maximum - you will typically only pay 30-50% of this early game.
 MechLabRefundModifier | float | default 1.0 | This enables full refunds of work orders now that we are generating them automatically. In vanilla this is 0.9 for a 90% rebate on cancelling work orders.
 
 ## Credits

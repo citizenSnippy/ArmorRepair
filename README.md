@@ -18,7 +18,7 @@ of snowballing in a campaign, and with the repairs scaled by tonnage it will als
 
 ## Features
 - Armor loss now matters
-- No more busywork with basic repairs... Let Yang take care of it!
+- Less busywork with basic repairs... Let Yang take care of typical armor/structure repairs.
 - Automated repair work orders can be cancelled safely, and will refund any sub items not paid for.
 - Scales both structure and armor costs with the mech tonnage, making Light mechs more cost effective on milk runs, and taking Heavy/Assault mechs more of a consideration than the only choice.
 
@@ -47,8 +47,10 @@ Downloads can be found on [github](https://github.com/citizenSnippy/ArmorRepair/
 Setting | Type | Default | Description
 --- | --- | --- | ---
 enableStructureRepair | boolean | default true | Whether to automatically issue structure damage repair work orders
-scaleStructureCostByTonnage | bool | default true | Set this to false if you don't want to scale structure repair time/costs by mech tonnage
-scaleArmorCostByTonnage | bool | default true | Set this to false if you don't want to scale armor repair time/costs by mech tonnage
+scaleStructureCostByTonnage | bool | default true | Set to false if you don't want to scale structure repair time/costs by mech tonnage
+scaleArmorCostByTonnage | bool | default true | Set to false if you don't want to scale armor repair time/costs by mech tonnage
+enableAutoRepairPrompt | bool | default true | Set to false if you don't want Yang to summarise repair costs and ask if you want him to auto-repair 'Mechs
+autoRepairMechsWithDestroyedComponents | bool | default true | Set to false to never auto-repair 'Mechs if they have destroyed components
 debug | bool | default true | Set this to false to turn off debug logging (See ArmorRepair\Log.txt)
 
 ## SimGameConstants.json Settings

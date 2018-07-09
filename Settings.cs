@@ -16,8 +16,8 @@
         public bool ScaleArmorCostByTonnage => scaleArmorCostByTonnage;
         public bool enableAutoRepairPrompt = true;
         public bool EnableAutoRepairPrompt => enableAutoRepairPrompt;
-        public bool autoRepairMechsWithDamagedComponents = true;
-        public bool AutoRepairMechsWithDamagedComponents => autoRepairMechsWithDamagedComponents;
+        public bool autoRepairMechsWithDestroyedComponents = true;
+        public bool AutoRepairMechsWithDestroyedComponents => autoRepairMechsWithDestroyedComponents;
         #endregion game
     }
 }

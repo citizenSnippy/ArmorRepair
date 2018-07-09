@@ -40,7 +40,7 @@ namespace ArmorRepair
             Logger.LogDebug("Mod Settings StructureScaling: " + ModSettings.ScaleStructureCostByTonnage);
             Logger.LogDebug("Mod Settings ArmorScaling: " + ModSettings.ScaleArmorCostByTonnage);
             Logger.LogDebug("Mod Settings EnableAutoRepairPrompt: " + ModSettings.EnableAutoRepairPrompt);
-            Logger.LogDebug("Mod Settings AutoRepairMechsWithDamagedComponents: " + ModSettings.AutoRepairMechsWithDamagedComponents);
+            Logger.LogDebug("Mod Settings AutoRepairMechsWithDestroyedComponents: " + ModSettings.AutoRepairMechsWithDestroyedComponents);
             Logger.LogInfo("Mod Initialised.");
 
         }

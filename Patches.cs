@@ -9,10 +9,28 @@ using System.Linq;
 namespace ArmorRepair
 {
 
-    // Ask the user if they want automated armor / structure repairs
+    // Ensure our temp Mech Lab queue is always cleared before processing another mission/contract completion
     [HarmonyPatch(typeof(SimGameState), "ResolveCompleteContract")]
     public static class SimGameState_ResolveCompleteContract_Patch
     {
+
+        // Just for safety, ensure the temp queue in this mod is completely clear before we run any processing
+        public static bool Prefix(SimGameState __instance)
+        {
+            try
+            {
+                Globals.tempMechLabQueue.Clear();
+            }
+            catch(Exception ex)
+            {
+                Logger.LogError(ex);
+                return true; 
+            }
+
+            return true; // Allow original method to fire
+        }
+
+        // Run after completion of contracts and queue up any orders in the temp queue into the game's Mech Lab queue 
         public static void Postfix(SimGameState __instance)
         {
             try
@@ -31,48 +49,34 @@ namespace ArmorRepair
                     string skipMechMessage = String.Empty;
                     string finalMessage = String.Empty;
 
-                    Logger.LogDebug("Temp Queuue has " + Globals.tempMechLabQueue.Count + " entries.");
-
-                    // If player has disabled auto repairing mechs with damaged components, check for them and remove them from the temp queue before continuing
-                    if (!ArmorRepair.ModSettings.AutoRepairMechsWithDamagedComponents)
+                    // If player has disabled auto repairing mechs with destroyed components, check for them and remove them from the temp queue before continuing
+                    if (!ArmorRepair.ModSettings.AutoRepairMechsWithDestroyedComponents)
                     {
                         for (int index = 0; index < Globals.tempMechLabQueue.Count; index++)
                         {
                             WorkOrderEntry_MechLab order = Globals.tempMechLabQueue[index];
-                            bool removeOrder = false;
 
-                            Logger.LogDebug("Checking for destroyed components due to autoRepairMechsWithDamagedComponents=true setting...");
-                            // Check for damaged mechs with destroyed components
+                            Logger.LogDebug("Checking for destroyed components.");
+                            bool destroyedComponents = false;
                             MechDef mech = __instance.GetMechByID(order.MechID);
+                            destroyedComponents = Helpers.CheckDestroyedComponents(mech);
 
-                            foreach (MechComponentRef mechComponentRef in mech.Inventory)
+                            if (destroyedComponents)
                             {
-                                Logger.LogDebug("ComponentDefId: " + mechComponentRef.ComponentDefID);
-                                Logger.LogDebug("ComponentDefType: " + mechComponentRef.ComponentDefType);
-                                Logger.LogDebug("DamageLevel: " + mechComponentRef.DamageLevel);
-
-                                if (!removeOrder && mechComponentRef.DamageLevel == ComponentDamageLevel.Destroyed)
-                                {
-                                    Logger.LogDebug(mech.Name + " has destroyed components: " + mechComponentRef.ToString() + " and will be removed from the queue.");
-                                    removeOrder = true;
-                                }
-                            }
-
-                            if (removeOrder)
-                            {
-                                // Remove this work order from the temp mech lab queue if the mech has damaged components and move to next iteration
-                                Logger.LogDebug("Removing " + mech.Name + " order from temp queue.");
+                                // Remove this work order from the temp mech lab queue if the mech has destroyed components and move to next iteration
+                                Logger.LogDebug("Removing " + mech.Name + " order from temp queue due to destroyed components and mod settings.");
                                 Globals.tempMechLabQueue.Remove(order);
-                                removeOrder = false;
+                                destroyedComponents = false;
                                 skipMechCount++;
                                 index++;
-                            }         
+
+                            }
                         }
                     }
 
                     Logger.LogDebug("Temp Queue has " + Globals.tempMechLabQueue.Count + " entries.");
 
-                    // Calculate repair costs from the temp work order queue
+                    // Calculate summary of total repair costs from the temp work order queue
                     for (int index = 0; index < Globals.tempMechLabQueue.Count; index++)
                     {
                         WorkOrderEntry_MechLab order = Globals.tempMechLabQueue[index];
@@ -103,10 +107,7 @@ namespace ArmorRepair
                         // Generate a quick friendly description of how many mechs were damaged in battle
                         switch (mechRepairCount)
                         {
-                            case 0:
-                                {
-                                    Logger.LogDebug("mechRepairCount was 0."); break;
-                                }
+                            case 0: { Logger.LogDebug("mechRepairCount was 0."); break; }
                             case 1: { mechRepairCountDisplayed = "one of our 'Mechs was"; break; }
                             case 2: { mechRepairCountDisplayed = "a couple of the 'Mechs were"; break; }
                             case 3: { mechRepairCountDisplayed = "three of our 'Mechs were"; break; }
@@ -115,19 +116,16 @@ namespace ArmorRepair
                         // Generate a friendly description of how many mechs were damaged but had components destroyed
                         switch (skipMechCount)
                         {
-                            case 0:
-                                {
-                                    Logger.LogDebug("skipMechCount was 0."); break;
-                                }
+                            case 0: { Logger.LogDebug("skipMechCount was 0."); break; }
                             case 1: { skipMechCountDisplayed = "one of the 'Mechs is damaged but has"; break; }
                             case 2: { skipMechCountDisplayed = "two of the 'Mechs are damaged but have"; break; }
                             case 3: { skipMechCountDisplayed = "three of the 'Mechs are damaged but have "; break; }
                             case 4: { skipMechCountDisplayed = "the whole lance is damaged but has"; break; }
                         }
 
+                        // Check if there are any mechs to process
                         if (mechRepairCount > 0 || skipMechCount > 0)
                         {
-
                             Logger.LogDebug("mechRepairCount is " + mechRepairCount + " skipMechCount is " + skipMechCount);
 
                             // Setup the notification for mechs with damaged components that we might want to skip
@@ -187,7 +185,7 @@ namespace ArmorRepair
                                 }
                                 
 
-                                // Queue Notification
+                                // Queue up Yang's notification
                                 notificationQueue.QueuePauseNotification(
                                     "'Mech Repairs Needed",
                                     finalMessage,
@@ -198,9 +196,9 @@ namespace ArmorRepair
                                         Logger.LogDebug("[PROMPT] Moving work orders from temp queue to Mech Lab queue: " + Globals.tempMechLabQueue.Count + " work orders");
                                         foreach (WorkOrderEntry_MechLab workOrder in Globals.tempMechLabQueue.ToList())
                                         {
-                                            Logger.LogInfo("[PROMPT] Moving work order from temp queue to Mech Lab queue: " + workOrder.Description + " - " + workOrder.GetCBillCost());
-                                            Helpers.SubmitWorkOrder(__instance, workOrder);
-                                            Globals.tempMechLabQueue.Remove(workOrder);
+                                                Logger.LogInfo("[PROMPT] Moving work order from temp queue to Mech Lab queue: " + workOrder.Description + " - " + workOrder.GetCBillCost());
+                                                Helpers.SubmitWorkOrder(__instance, workOrder);
+                                                Globals.tempMechLabQueue.Remove(workOrder);
                                         }
                                     },
                                     "Yes",
@@ -238,7 +236,10 @@ namespace ArmorRepair
     }
 
 
-    // Prefix on RestoreMechPostCombat to create a new modify armor work order from the armor loss difference of each mech at the end of combat
+    /* Prefix on RestoreMechPostCombat to create a new modify armor work order from the armor loss difference of each mech at the end of combat
+     * 
+     *  If successful we prevent firing the original method as this is required to stop mech armor being blindly reset at the end of a contract.
+     */
     [HarmonyPatch(typeof(SimGameState), "RestoreMechPostCombat")]
     public static class SimGameState_RestoreMechPostCombat_Patch
     {
@@ -267,10 +268,10 @@ namespace ArmorRepair
                         Logger.LogDebug("SimGameConstant: StructureRepairCost: " + __instance.Constants.MechLab.StructureRepairCost);
 
                         // Loop over the ChassisLocations for repair in their highest -> lowest priority order from the dictionary defined in Helpers
-                        for (int index = 0; index < Helpers.repairPriorities.Count; index++)
+                        for (int index = 0; index < Globals.repairPriorities.Count; index++)
                         {
                             // Set current looped ChassisLocation
-                            ChassisLocations thisLoc = Helpers.repairPriorities.ElementAt(index).Value;
+                            ChassisLocations thisLoc = Globals.repairPriorities.ElementAt(index).Value;
                             // Get current mech's loadout definition from the looped chassis location
                             LocationLoadoutDef thisLocLoadout = mech.GetLocationLoadoutDef(thisLoc);
                             // Friendly name for this location
@@ -322,6 +323,40 @@ namespace ArmorRepair
                     }
                 }
 
+                /* COMPONENT DAMAGE CHECKS
+                 * -----------------------
+                 * Check if the given mech needs any critted components repaired
+                 * 
+                 * NOTE: Not yet working. Repair components are added to work order but not actually repaired after WO completes. Noticed there is another queue involved on SGS.WorkOrderComponents we need to debug.
+                 * Currently throws "SimGameState [ERROR] ML_RepairComponent MechBay - RepairComponent - SGRef_490 had an invalid mechComponentID Ammo_AmmunitionBox_Generic_AC5, skipping" in SimGame logger on WO completion.
+                if (Helpers.CheckDamagedComponents(mech))
+                {
+                    for (int index = 0; index < mech.Inventory.Length; index++)
+                    {
+                        MechComponentRef mechComponentRef = mech.Inventory[index];
+
+                        // Penalized = Critted Component
+                        if (mechComponentRef.DamageLevel == ComponentDamageLevel.Penalized)
+                        {
+                            // Check if a new base MechLab order needs to be created or not
+                            if (newMechLabWorkOrder == null)
+                            {
+                                // Create new base work order of the generic MechLab type if it doesn't already exist
+                                newMechLabWorkOrder = Helpers.CreateBaseMechLabOrder(__instance, mech);
+                            }
+
+                            // Create a new component repair work order for this component
+                            Logger.LogInfo("Creating Component Repair work order entry for " + mechComponentRef.ComponentDefID);
+                            WorkOrderEntry_RepairComponent newComponentRepairOrder = __instance.CreateComponentRepairWorkOrder(mechComponentRef, false);
+
+                            // Attach as a child to the base Mech Lab order.
+                            Logger.LogDebug("Adding WO subentry to repair component " + mechComponentRef.ComponentDefID);
+                            newMechLabWorkOrder.AddSubEntry(newComponentRepairOrder);
+                        }
+                    }
+                }
+                */
+
 
                 /* ARMOR DAMAGE CHECKS
                  * -------------------
@@ -335,10 +370,10 @@ namespace ArmorRepair
                     Logger.LogDebug("SimGameConstant: ArmorInstallCost: " + __instance.Constants.MechLab.ArmorInstallCost);
 
                     // Loop over the ChassisLocations for repair in their highest -> lowest priority order from the dictionary defined in Helpers
-                    for (int index = 0; index < Helpers.repairPriorities.Count; index++)
+                    for (int index = 0; index < Globals.repairPriorities.Count; index++)
                     {
                         // Set current ChassisLocation
-                        ChassisLocations thisLoc = Helpers.repairPriorities.ElementAt(index).Value;
+                        ChassisLocations thisLoc = Globals.repairPriorities.ElementAt(index).Value;
                         // Get current mech's loadout from the looped chassis location
                         LocationLoadoutDef thisLocLoadout = mech.GetLocationLoadoutDef(thisLoc);
                         // Friendly name for this location
@@ -630,7 +665,9 @@ namespace ArmorRepair
 
 
     /* [FIX] Patch into ML_RepairMech to prevent structure repair work orders from resetting armor
-     *      HBS hardcoded structure repairs to reset armor because reasons
+     *  HBS hardcoded structure repairs to reset armor because reasons
+     *  
+     *  This must prevent ML_RepairMech from firing as it's the only way we can stop blind armor resets when mech structure is repaired
      */
     [HarmonyPatch(typeof(SimGameState), "ML_RepairMech")]
     public static class SimGameState_ML_RepairMech_Patch
@@ -656,13 +693,11 @@ namespace ArmorRepair
         }
     }
 
-    /* [FIX] UI WARNING ON DAMAGED COMPONENTS
+    /* [FIX] UI WARNING ON DESTROYED COMPONENTS
      * Attempting to flag up warning in Mech Bay / Mech Lab when a mech has destroyed components.
      * 
-     * This isn't a problem in vanilla, but now we are auto repairing armour and structure and can't auto repair components (e.g. they might not be in stock)
+     * This isn't a problem in vanilla, but now we are auto repairing armour and structure and can't auto repair components easily (e.g. they might not be in stock)
      * we now need to flag up the player that there is a problem with the mech when it has destroyed components.
-     * 
-     * TODO: Probably need to find a smarter way of doing this than using the Underweight Tonnage warning.
      */
     [HarmonyPatch(typeof(MechValidationRules), "ValidateMechTonnage")]
     public static class MechValidationRules_ValidateMechTonnage_Patch
@@ -675,10 +710,9 @@ namespace ArmorRepair
                 {
                     MechComponentRef mechComponentRef = mechDef.Inventory[i];
                     if (mechComponentRef.DamageLevel == ComponentDamageLevel.Destroyed)
-                    {
-                        
-                        Logger.LogDebug("Flagging damaged component warning: " + mechDef.Name);
-                        errorMessages[MechValidationType.Underweight].Add(string.Format("DAMAGED COMPONENT: 'Mech has damaged components", new object[0]));
+                    {         
+                        Logger.LogDebug("Flagging destroyed component warning: " + mechDef.Name);
+                        errorMessages[MechValidationType.Underweight].Add(string.Format("DESTROYED COMPONENT: 'Mech has destroyed components", new object[0]));
                         break;
                     }
                 }
@@ -718,28 +752,6 @@ namespace ArmorRepair
      * 
      */
 
-    // Testing to see if this is the override we need to stop mech's auto regaining their armor even if the WO is cancelled
-    [HarmonyPatch(typeof(SimGameState), "ML_ModifyArmor")]
-    public static class SimGameState_ML_ModifyArmor_Patch
-    {
-        private static bool Prefix(SimGameState __instance, WorkOrderEntry_ModifyMechArmor order)
-        {
-            MechDef mechByID = __instance.GetMechByID(order.MechLabParent.MechID);
-            LocationLoadoutDef locationLoadoutDef = mechByID.GetLocationLoadoutDef(order.Location);
-
-            Logger.LogDebug("ML_ModifyArmor was called with params: ");
-            Logger.LogDebug("************************************** ");
-            Logger.LogDebug("mechByID: " + mechByID.Description.Name);
-            Logger.LogDebug("CurrentArmor: " + locationLoadoutDef.CurrentArmor + " = Desired: " + (float)order.DesiredFrontArmor);
-            Logger.LogDebug("CurrentRearArmor: " + locationLoadoutDef.CurrentRearArmor + " = Desired: " + (float)order.DesiredRearArmor);
-            Logger.LogDebug("AssignedArmor: " + locationLoadoutDef.AssignedArmor + " = Desired: " + (float)order.DesiredFrontArmor);
-            Logger.LogDebug("AssignedRearArmor: " + locationLoadoutDef.AssignedRearArmor + " = Desired: " + (float)order.DesiredRearArmor);
-            Logger.LogDebug("************************************** ");
-
-            return true;
-        }
-    }
-
     // Just to debug Structure WO final costs
     [HarmonyPatch(typeof(WorkOrderEntry_RepairMechStructure), new Type[]
         {
@@ -770,4 +782,28 @@ namespace ArmorRepair
             }
         }
     }
+
+    /* ML_ModifyArmor executes when a work order item for modifying armor is completed, and physically sets the desired amor on the mech. 
+     *  It's not needed at this time 
+    [HarmonyPatch(typeof(SimGameState), "ML_ModifyArmor")]
+    public static class SimGameState_ML_ModifyArmor_Patch
+    {
+        private static bool Prefix(SimGameState __instance, WorkOrderEntry_ModifyMechArmor order)
+        {
+            MechDef mechByID = __instance.GetMechByID(order.MechLabParent.MechID);
+            LocationLoadoutDef locationLoadoutDef = mechByID.GetLocationLoadoutDef(order.Location);
+
+            Logger.LogDebug("ML_ModifyArmor was called with params: ");
+            Logger.LogDebug("************************************** ");
+            Logger.LogDebug("mechByID: " + mechByID.Description.Name);
+            Logger.LogDebug("CurrentArmor: " + locationLoadoutDef.CurrentArmor + " = Desired: " + (float)order.DesiredFrontArmor);
+            Logger.LogDebug("CurrentRearArmor: " + locationLoadoutDef.CurrentRearArmor + " = Desired: " + (float)order.DesiredRearArmor);
+            Logger.LogDebug("AssignedArmor: " + locationLoadoutDef.AssignedArmor + " = Desired: " + (float)order.DesiredFrontArmor);
+            Logger.LogDebug("AssignedRearArmor: " + locationLoadoutDef.AssignedRearArmor + " = Desired: " + (float)order.DesiredRearArmor);
+            Logger.LogDebug("************************************** ");
+
+            return true;
+        }
+    }*/
+
 }

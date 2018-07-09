@@ -1,0 +1,16 @@
+
+
+Change Log
+== v1.1 ==
+2018-07-08
+
+* New Setting - enableAutoRepairPrompt (default: true): 
+	* After missions, Yang will ask the player via UI if they want auto-repairs and summarise the costs. 
+	* This replaces the default vanilla "Mech Repairs Needed" notification so it shouldn't cause many extra clicks.
+	* Setting to false to always automatically queue repairs without this new popup notification.
+* New Setting - autoRepairMechsWithDamagedComponents (default: true): 
+	* Whether to auto-repair structure and armor on 'Mechs that have any destroyed components.
+	* Set to false if you want Yang to always ignore repairing any 'Mechs that have damaged components, letting you handle them instead.
+* Fix - auto repairs now queue at the highest Mech Bay work order priority (above any existing 'Mech refits etc.)
+* Fix - missing comma in SimGameConstants.json
+* Balance - slightly increased armor/structure repair time based on initial player feedback.

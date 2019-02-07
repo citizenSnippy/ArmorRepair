@@ -6,7 +6,7 @@ namespace ArmorRepair
     class Logger
     {
 
-        public const string path = "mods/ArmorRepair/Log.txt";
+        public const string path = "Mods/ArmorRepair/Log.txt";
 
         public Logger()
         {
